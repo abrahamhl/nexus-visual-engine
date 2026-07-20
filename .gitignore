@@ -1,0 +1,24 @@
+# --- NEXUS: proteger material privado y basura local ---
+node_modules/
+.claude/
+mcps/
+terminals/
+_borradores*/
+src-imgs-*/
+versiones previas*/
+Prompt-para-Claude-Code.md
+01_pulse-index.html
+ABRIR.html
+
+# medios pesados / personales
+*.mp3
+*.mp4
+*.mov
+*.wav
+*.zip
+
+# sistema
+Thumbs.db
+desktop.ini
+*.log
+.DS_Store
