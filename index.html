@@ -2142,6 +2142,104 @@
         function toggleBlackout() { blackoutOn = !blackoutOn; blackoutEl.classList.toggle('hidden', !blackoutOn); if(blackoutOn) toast('BLACKOUT activo · toca la pantalla o pulsa B para volver'); }
         blackoutEl.addEventListener('click', () => { if(blackoutOn) toggleBlackout(); });
 
+        // ---------- DEV INSTRUMENTATION & TEST SIGNAL ----------
+        let devMode = false;
+        let testSignalPlaying = false;
+        let testSignalOsc = null;
+        let stressTestTimer = null;
+        const devHud = document.createElement('div');
+        devHud.id = 'dev-hud';
+        devHud.style.cssText = 'position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.8); color:#0f0; font-family:monospace; font-size:12px; padding:10px; z-index:9999; display:none; pointer-events:none; border:1px solid #0f0; white-space:pre;';
+        document.body.appendChild(devHud);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'D' && e.shiftKey) {
+                devMode = !devMode;
+                devHud.style.display = devMode ? 'block' : 'none';
+                toast(devMode ? 'Dev Instrumentation ON' : 'Dev Instrumentation OFF');
+            }
+            if (e.key === 'T' && e.shiftKey) {
+                toggleTestSignal();
+            }
+            if (e.key === 'S' && e.shiftKey) {
+                toggleStressTest();
+            }
+        });
+
+        function toggleStressTest() {
+            if (stressTestTimer) {
+                clearInterval(stressTestTimer);
+                stressTestTimer = null;
+                toast('Stress Test OFF');
+            } else {
+                let id = 1;
+                stressTestTimer = setInterval(() => {
+                    id = (id % 29) + 1; // Cycle through all 29 effects rapidly
+                    if (fxData[id]) {
+                        loadEffect(id);
+                        applyMood('Caos');
+                    }
+                }, 150); // 150ms per effect swap to stress memory / shader compilation
+                toast('Stress Test ON (Rapid Shader Cycling)');
+            }
+        }
+
+        function toggleTestSignal() {
+            initAudioContext();
+            if (testSignalPlaying) {
+                if (testSignalOsc) { testSignalOsc.stop(); testSignalOsc.disconnect(); }
+                testSignalPlaying = false;
+                toast('Test Signal OFF');
+            } else {
+                if (acidPlaying) stopAcid();
+                audioElement.pause();
+                if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+                
+                testSignalOsc = audioCtx.createOscillator();
+                testSignalOsc.type = 'square';
+                testSignalOsc.frequency.value = 55; // 55Hz (low bass) to trigger visualizer reliably
+                
+                // Add a low frequency LFO to simulate a deterministic beat
+                const lfo = audioCtx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 2; // 2Hz = 120 BPM
+                const lfoGain = audioCtx.createGain();
+                lfoGain.gain.value = 1.0;
+                lfo.connect(lfoGain.gain);
+                
+                const mainGain = audioCtx.createGain();
+                mainGain.gain.value = 0.0; // Carrier
+                testSignalOsc.connect(mainGain);
+                lfoGain.connect(mainGain.gain);
+                
+                mainGain.connect(analyser);
+                ensureAnalyserOut();
+                
+                testSignalOsc.start();
+                lfo.start();
+                testSignalPlaying = true;
+                toast('Test Signal ON (Deterministic)');
+            }
+        }
+
+        // Live dev HUD update
+        setInterval(() => {
+            if (!devMode) return;
+            const drawCalls = renderer.info.render.calls;
+            const activeGeom = renderer.info.memory.geometries;
+            const activeTex = renderer.info.memory.textures;
+            const frameTime = _fps > 0 ? (1000 / _fps).toFixed(1) : '0.0';
+            devHud.textContent = `=== DEV HUD ===
+FPS        : ${_fps}
+Frame Time : ${frameTime} ms
+Draw Calls : ${drawCalls}
+Geometries : ${activeGeom}
+Textures   : ${activeTex}
+Resolution : ${window.innerWidth}x${window.innerHeight}
+Pixel Ratio: ${renderer.getPixelRatio()}
+Audio Source: ${testSignalPlaying ? 'TEST_SIGNAL' : (acidPlaying ? 'ACID_SYNTH' : 'DEFAULT')}`;
+        }, 100);
+
         // ---------- ACID TECHNO GENERATIVO (Web Audio, sin copyright) ----------
         let acidTimer = null, acidStep = 0, acidNextTime = 0, acidMaster = null, acidHatBuf = null;
         const ACID_BPM = 130;
