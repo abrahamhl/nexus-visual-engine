@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax-check the static server
+        run: node --check server.mjs
+
+      - name: Verify index.html is present and non-trivial
+        run: node -e "const fs=require('fs');const s=fs.readFileSync('index.html','utf8');if(!s.includes('<!DOCTYPE html>')||s.length<10000){throw new Error('index.html missing or too small')}"
